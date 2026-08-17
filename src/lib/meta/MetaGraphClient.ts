@@ -38,6 +38,12 @@ export interface PaginateOptions {
   maxItems: number;
   pageSize?: number;
   signal?: AbortSignal;
+  /**
+   * Resume point. When supplied, the walk begins after this cursor instead of at
+   * the start of the edge - which is how an interrupted sync continues from the
+   * last fully-persisted page rather than re-fetching everything before it.
+   */
+  startCursor?: string;
 }
 
 interface RequestResult<T> {
@@ -165,7 +171,7 @@ export class MetaGraphClient {
      * throughput on its own.
      */
     let pageSize = learned ? Math.min(requested, learned * 2) : requested;
-    let cursor: string | undefined;
+    let cursor: string | undefined = options.startCursor;
     let pageNumber = 0;
     let yielded = 0;
 
