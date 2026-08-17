@@ -6,6 +6,7 @@ import pinoHttp from 'pino-http';
 
 import { env } from '../lib/env';
 import { logger } from '../lib/logger';
+import { hashtagRouter } from '../api/controllers/HashtagController';
 import { healthRouter } from '../api/controllers/HealthController';
 import { errorHandler, notFoundHandler } from '../api/middlewares/errorHandler';
 
@@ -45,9 +46,14 @@ export function createApp(): Express {
   // the API version changes.
   app.use(healthRouter);
 
-  // Feature routers mount under the prefix in Phase 5.
   const api = express.Router();
+  api.use(hashtagRouter);
   app.use(env.APP_ROUTE_PREFIX, api);
+
+  // Also mounted unprefixed, because the brief specifies the path as
+  // `GET /hashtags`. Serving it only at /api/v1/hashtags would technically not be
+  // the endpoint that was asked for.
+  app.use(hashtagRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
