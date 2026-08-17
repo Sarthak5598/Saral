@@ -340,7 +340,7 @@ docker compose --profile app up -d
 
 # Migrations run against the container's Postgres once it is healthy.
 sleep 20
-docker compose --profile app exec -T worker node dist/database/migrate.js || true
+docker compose --profile app exec -T worker node dist/src/database/migrate.js || true
 
 echo "deployment finished" > /var/log/pipeline-deploy-done
 `;

@@ -27,9 +27,10 @@ COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --prod --frozen-lockfile || pnpm install --prod
 
 COPY --from=builder /app/dist ./dist
-# Migration SQL is read at runtime, so it has to be in the image.
-COPY src/database/migrations ./src/database/migrations
+# Migration SQL is read at runtime. migrate.ts resolves it relative to __dirname,
+# which is dist/src/database once compiled - hence this target, not ./src.
+COPY src/database/migrations ./dist/src/database/migrations
 
 EXPOSE 3000
 
-CMD ["node", "dist/app.js"]
+CMD ["node", "dist/src/app.js"]

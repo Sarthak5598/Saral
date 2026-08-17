@@ -57,7 +57,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["node", "dist/app.js"]
+    command: ["node", "dist/src/app.js"]
     ports:
       - "3000:3000"
     env_file:
@@ -78,7 +78,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["node", "dist/worker.js"]
+    command: ["node", "dist/src/worker.js"]
     env_file:
       - .env
     environment:
