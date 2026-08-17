@@ -106,7 +106,44 @@ runCommand('aws:teardown', async () => {
 
   const region = env.AWS_REGION;
 
-  // Schedule first: stop new work arriving before removing what processes it.
+  // EC2 first, and by a wide margin the most important step: it is the only
+  // resource here that accrues cost per hour rather than per byte or per request.
+  const { EC2Client, DescribeInstancesCommand, TerminateInstancesCommand } = await import(
+    '@aws-sdk/client-ec2'
+  );
+
+  try {
+    const ec2 = new EC2Client({ region });
+    const found = await ec2.send(
+      new DescribeInstancesCommand({
+        Filters: [
+          { Name: 'tag:Name', Values: ['hashtag-pipeline-worker'] },
+          { Name: 'instance-state-name', Values: ['pending', 'running', 'stopped'] },
+        ],
+      }),
+    );
+
+    const ids = (found.Reservations ?? [])
+      .flatMap((reservation) => reservation.Instances ?? [])
+      .map((instance) => instance.InstanceId)
+      .filter((id): id is string => Boolean(id));
+
+    if (ids.length > 0) {
+      await ec2.send(new TerminateInstancesCommand({ InstanceIds: ids }));
+      log.info({ instanceIds: ids }, 'EC2 instance(s) terminated - hourly charges stopped');
+    } else {
+      log.info('no EC2 instances found');
+    }
+  } catch (error) {
+    // Reported loudly rather than swallowed: an instance left running is the one
+    // failure here that costs money.
+    log.error(
+      { err: error },
+      'could not terminate EC2 - CHECK THE CONSOLE MANUALLY, a running instance bills hourly',
+    );
+  }
+
+  // Schedule next: stop new work arriving before removing what processes it.
   const scheduler = new SchedulerClient({ region });
   try {
     await scheduler.send(new DeleteScheduleCommand({ Name: env.EVENTBRIDGE_SCHEDULE_NAME }));

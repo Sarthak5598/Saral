@@ -23,3 +23,6 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# EC2 private key created by pnpm deploy:ec2 - never commit
+*.pem
