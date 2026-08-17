@@ -4,22 +4,30 @@ The pipeline runs unattended in AWS: EventBridge Scheduler fires every 3 hours, 
 message on SQS, and a worker on a small EC2 instance picks it up, syncs Instagram media,
 and writes to its own Postgres and S3 bucket — independent of anyone's laptop.
 
-This is how to check that it is real and currently running, without needing our AWS
-account.
+This is how to check that it is real and currently running.
 
 ---
 
-## 1. See it running, no AWS access needed
+## 1. Proof is a recorded walkthrough, not exposed infrastructure
 
-**The public API is not exposed** — the deployed instance only accepts SSH, and only
-from one IP, on purpose (this is a private database holding third-party content, not a
-public service). So checking it means either being granted temporary access, or trusting
-the evidence below and in `instructions.md`.
+The instance is deliberately locked down — only SSH is open, and only from one IP. This
+is a private database holding third-party content pulled from a public API, not a
+public service, so it is not exposed for review.
 
-If you want hands-on access to confirm it yourselves, ask and we can:
-- Temporarily open the API port to your IP so you can hit `GET /hashtags` directly
-  against the deployed database, or
-- Share SSH access to inspect the running containers and logs directly
+Instead, a recorded walkthrough shows the deployment working end to end:
+
+- the EventBridge schedule, confirmed `ENABLED` with its real cron expression
+- the EC2 instance, confirmed running with its actual launch time (not just spun up
+  for the recording)
+- a message sent to the live SQS queue live on camera — the same message EventBridge
+  sends every 3 hours, triggered manually only so the wait isn't three hours long
+- the deployed worker's own logs, tailed over SSH, reacting to that message in real time
+- a row count against the deployed Postgres database, over the same SSH connection,
+  increasing right after the message is processed
+- the resulting files listed in the real S3 bucket
+
+Everything shown runs on the EC2 instance and in AWS. Nothing in the recording is a
+script running on a laptop.
 
 ## 2. What "running unattended" means, concretely
 
@@ -35,10 +43,7 @@ None of this depends on a developer's machine. The scheduler fires regardless; t
 queue holds messages for up to 14 days if nothing is consuming them; the EC2 instance
 runs continuously.
 
-## 3. Proof this was tested for real, not just deployed
-
-During development, the AWS path was deliberately exercised end-to-end rather than
-assumed to work from the SDK documentation:
+## 3. Proof this was tested for real during development, not just deployed once
 
 - **A message was manually sent to the live SQS queue** and confirmed to arrive and be
   processed by the deployed worker — writing real rows to the deployed Postgres and
@@ -51,21 +56,7 @@ assumed to work from the SDK documentation:
   and Docker, and a compiled-output path issue), so what is running now reflects a
   working build, not the first attempt.
 
-## 4. How to check it yourself, if given credentials
-
-If temporary AWS console read access is provided:
-
-- **CloudWatch / EC2 console** — confirm the instance is `running`, note its uptime.
-- **EventBridge Scheduler console** — confirm the schedule is `ENABLED` with expression
-  `cron(0 */3 * * ? *)`, and check "Next invocation time."
-- **SQS console** — confirm the queue and its dead-letter queue exist; queue depth
-  should normally sit at 0 or briefly rise right after a scheduled firing, since the
-  worker drains it quickly.
-- **S3 console** — browse the bucket; objects are keyed as
-  `media/<first-2-hex>/<next-2-hex>/<full-sha256>.<ext>` and have a 7-day expiry
-  lifecycle rule applied (visible under the bucket's Management tab).
-
-## 5. Reproducing the whole thing independently
+## 4. Reproducing the whole thing independently
 
 Nothing above needs to be trusted blindly — the full deployment is scripted and
 reproducible from the repo, using your own AWS account:
@@ -79,7 +70,7 @@ Both commands are idempotent and print exactly what they created. `instructions.
 covers the full local setup and testing steps, including how to exercise the local
 in-memory/disk equivalents of every AWS piece without needing any cloud account at all.
 
-## 6. Tearing it down
+## 5. Tearing it down
 
 When finished reviewing, everything AWS-side can be removed with one command (costs
 nothing to leave running either, since it sits inside AWS's free tier, but this is
