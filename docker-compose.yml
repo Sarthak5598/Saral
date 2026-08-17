@@ -1,0 +1,92 @@
+# Local infrastructure for the hashtag media pipeline.
+#
+#   docker compose up -d
+#     postgres -> localhost:5434
+#     adminer  -> http://localhost:8081  (server: postgres | user/pass: postgres)
+#
+# The API and worker run on the host via `pnpm dev` / `pnpm dev:worker` so that
+# reloads are fast and logs are readable. `docker compose --profile app up` also
+# runs them in containers for reviewers who would rather not install Node.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: hmp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hashtag_media
+    ports:
+      # Published on 5434, not 5432/5433, to avoid clashing with a Postgres
+      # already running on the host - both of those are commonly taken and the
+      # native server wins the bind race, so connections silently hit the wrong
+      # database. Containers still reach it on 5432 over the compose network.
+      - "5434:5432"
+    volumes:
+      - hmp-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The app runs migrations on boot, so it must not start until Postgres
+      # accepts connections - otherwise the migration step fails and exits.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hashtag_media"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Lightweight web UI for browsing the database.
+  adminer:
+    image: adminer:4
+    container_name: hmp-adminer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+
+  # --- optional: run the app in containers too (docker compose --profile app up)
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+    container_name: hmp-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["node", "dist/app.js"]
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Override the host-facing values with compose-network equivalents.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/hashtag_media
+      LOG_OUTPUT: json
+    volumes:
+      - hmp-storage:/app/storage
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: .
+    container_name: hmp-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["node", "dist/worker.js"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/hashtag_media
+      LOG_OUTPUT: json
+    volumes:
+      - hmp-storage:/app/storage
+
+volumes:
+  hmp-pgdata:
+  hmp-storage:

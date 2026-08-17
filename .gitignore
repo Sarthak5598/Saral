@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+
+# Secrets - the Meta token and AWS keys live here.
+.env
+.env.local
+.env.*.local
+
+# Local storage driver output (downloaded media assets).
+storage/
+
+# Captured Meta API responses used for offline tests. Kept out of git because
+# they contain real captions and CDN URLs.
+docs/samples/*.json
+!docs/samples/.gitkeep
+
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
