@@ -34,8 +34,9 @@ Then:
 curl "http://localhost:3000/hashtags?limit=5"
 ```
 
-That is genuinely the entire local path. Everything below is detail, options, and how
-to verify it more thoroughly — nothing past this point is required to see it work.
+That is the complete local path. Everything below covers configuration options,
+deeper verification, and the AWS deployment — none of it is required to see the
+pipeline run.
 
 ### Prerequisites
 
@@ -236,78 +237,35 @@ unrecoverable. Filtering posts by age is a read concern: `?takenAfter=`.
 A CLI command rather than a `POST /hashtags` endpoint because the brief specifies one
 paginated API.
 
-**Constraint worth knowing:** Meta allows 30 **unique** hashtags per rolling 7 days
+**Constraint:** Meta allows 30 **unique** hashtags per rolling 7 days
 per Instagram account. Re-syncing an already-queried tag is free within that window,
 but the 31st new tag in a week will fail.
 
-### Switching to AWS
+### AWS deployment
+
+The same code runs unmodified against SQS, S3, and EventBridge Scheduler by setting
+`QUEUE_DRIVER=aws`, `STORAGE_DRIVER=aws`, and `SCHEDULER_DRIVER=aws`, backed by two
+scripts:
 
 ```bash
-pnpm aws:provision
+pnpm aws:provision   # creates the S3 bucket, SQS queue + DLQ, IAM role, EventBridge schedule
+pnpm deploy:ec2      # launches an EC2 instance running the full stack in Docker
+pnpm aws:teardown --yes   # removes all of it, instance first
 ```
 
-Creates an S3 bucket (`hashtag-media-<accountId>`, public access blocked, SSE-S256),
-an SQS queue plus dead-letter queue with `maxReceiveCount: 3`, an IAM role scoped to
-`sqs:SendMessage` on that one queue, and an EventBridge schedule targeting it. It is
-idempotent — safe to re-run. It prints the env values to paste in.
+These authenticate using whatever AWS credentials are configured on the machine
+running them (`aws configure`) and provision resources in **that** account — there is
+no way to reach the author's deployment without the author's own credentials, which
+are not distributed with this repository. Running these commands against a reviewer's
+own AWS account creates an independent copy of the deployment for evaluation.
 
-Requires an IAM identity with `AmazonS3FullAccess`, `AmazonSQSFullAccess`,
-`AmazonEventBridgeSchedulerFullAccess` and — only for provisioning — `IAMFullAccess`,
-which is safe to detach afterwards.
-
-The three drivers are independent, so a migration can go one piece at a time:
-
-```
-QUEUE_DRIVER=aws
-STORAGE_DRIVER=aws
-SCHEDULER_DRIVER=aws
-```
-
-`GET /health` reports which drivers are live, which is the fastest way to answer "is
-it using SQS or the in-memory queue right now".
-
-### Running it unattended (optional)
-
-```bash
-pnpm deploy:ec2
-```
-
-Launches one `t4g.micro` running `docker compose --profile app` — Postgres, worker and
-API on a single box — so the 3-hourly sync happens without anything on a laptop.
-Cloud-init installs Docker, clones this repo, migrates, seeds, and starts the
-containers with `restart: unless-stopped`.
-
-Not RDS: a separate managed database would add VPC work, a second billable resource,
-and nothing the assignment needs. One box keeps the whole thing inside the free tier
-and inside one teardown command.
-
-**What it does not expose.** The security group opens port 22 to the deploying
-machine's IP and nothing else. The API runs on the box but is unreachable from the
-internet, because an unauthenticated endpoint serving data is not worth the
-convenience — reviewers run the API locally.
-
-**Cost controls**, since this instance is the only resource billed per hour rather
-than per request:
-
-| Control | Value | Why |
-| --- | --- | --- |
-| Instance | `t4g.micro` | Free tier, 750 hrs/month for 12 months, then ~£5/month |
-| `SYNC_MAX_MEDIA_PER_RUN` | 25 on the instance | Measured: ~2.7MB per file and almost no dedupe on `recent_media`, so a cap of 100 meant ~1.9GB/day |
-| S3 lifecycle | expire after 7 days | Storage plateaus near 3.6GB instead of growing without bound |
-| Schedule | unchanged at 3-hourly | Download volume is the cost driver, never schedule frequency |
-
-Expired objects are gone for good and cannot be re-fetched, but the metadata, metric
-history and raw payloads stay in Postgres — so the analytical record outlives the
-files. That is the right thing to sacrifice against an unbounded bill.
-
-**Remove everything**, instance included:
-
-```bash
-pnpm aws:teardown --yes
-```
-
-It terminates the instance first, and logs loudly if it cannot — a running instance is
-the one failure here that costs money.
+The author's own AWS deployment — its design, the constraints that shaped it (no
+Lambda, no RDS, EC2 cost controls), and verification that it runs correctly and
+unattended — is documented in full in
+[ai-usage/design-and-implementation-plan.md](ai-usage/design-and-implementation-plan.md),
+including a recorded walkthrough. `pnpm aws:teardown` terminates the instance first
+and logs loudly if it cannot, since a running instance is the one resource here that
+costs money per hour.
 
 ### API
 
