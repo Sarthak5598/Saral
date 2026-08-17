@@ -241,6 +241,49 @@ SCHEDULER_DRIVER=aws
 `GET /health` reports which drivers are live, which is the fastest way to answer "is
 it using SQS or the in-memory queue right now".
 
+### Running it unattended (optional)
+
+```bash
+pnpm deploy:ec2
+```
+
+Launches one `t4g.micro` running `docker compose --profile app` — Postgres, worker and
+API on a single box — so the 3-hourly sync happens without anything on a laptop.
+Cloud-init installs Docker, clones this repo, migrates, seeds, and starts the
+containers with `restart: unless-stopped`.
+
+Not RDS: a separate managed database would add VPC work, a second billable resource,
+and nothing the assignment needs. One box keeps the whole thing inside the free tier
+and inside one teardown command.
+
+**What it does not expose.** The security group opens port 22 to the deploying
+machine's IP and nothing else. The API runs on the box but is unreachable from the
+internet, because an unauthenticated endpoint serving data is not worth the
+convenience — reviewers run the API locally.
+
+**Cost controls**, since this instance is the only resource billed per hour rather
+than per request:
+
+| Control | Value | Why |
+| --- | --- | --- |
+| Instance | `t4g.micro` | Free tier, 750 hrs/month for 12 months, then ~£5/month |
+| `SYNC_MAX_MEDIA_PER_RUN` | 25 on the instance | Measured: ~2.7MB per file and almost no dedupe on `recent_media`, so a cap of 100 meant ~1.9GB/day |
+| S3 lifecycle | expire after 7 days | Storage plateaus near 3.6GB instead of growing without bound |
+| Schedule | unchanged at 3-hourly | Download volume is the cost driver, never schedule frequency |
+
+Expired objects are gone for good and cannot be re-fetched, but the metadata, metric
+history and raw payloads stay in Postgres — so the analytical record outlives the
+files. That is the right thing to sacrifice against an unbounded bill.
+
+**Remove everything**, instance included:
+
+```bash
+pnpm aws:teardown --yes
+```
+
+It terminates the instance first, and logs loudly if it cannot — a running instance is
+the one failure here that costs money.
+
 ### API
 
 `GET /hashtags` — stored media, newest post first, keyset-paginated. Also served at
