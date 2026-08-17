@@ -49,14 +49,20 @@ const log = componentLogger('deploy:ec2');
  * Deployment overrides, distinct from the documented defaults in .env.example.
  *
  * The 500-item default is what the brief asks the pipeline to be capable of. On a
- * permanently running instance it is also a storage bill: at ~2.4MB per file
- * (measured) and 8 syncs a day, a 500 cap would download several GB daily and leave
- * the 5GB S3 free tier within a day.
+ * permanently running instance it is also a storage bill, and the numbers here are
+ * measured rather than assumed:
  *
- * 100 per run, paired with a 7-day expiry, plateaus around 4.4GB - inside the free
- * tier, while the 3-hourly cadence the brief requires stays untouched.
+ *   - ~2.7MB per media file (75 objects, 200MB, observed on the first deployed run)
+ *   - recent_media returns overwhelmingly new posts on a busy tag, so dedupe removes
+ *     far less than expected - a cap of 100 produced ~96 new files in one run
+ *   - 8 runs a day at a 100 cap is therefore ~1.9GB/day, which a 7-day expiry would
+ *     plateau at ~13GB - well past the 5GB free tier
+ *
+ * A cap of 25 gives ~520MB/day, plateauing near 3.6GB. Comfortably inside the free
+ * tier, and the 3-hourly cadence the brief requires stays untouched: download volume
+ * was always the cost driver, never schedule frequency.
  */
-const DEPLOY_MAX_MEDIA_PER_RUN = 100;
+const DEPLOY_MAX_MEDIA_PER_RUN = 25;
 const ASSET_EXPIRY_DAYS = 7;
 
 const ROLE_NAME = 'hashtag-pipeline-ec2-role';
@@ -340,7 +346,10 @@ docker compose --profile app up -d
 
 # Migrations run against the container's Postgres once it is healthy.
 sleep 20
-docker compose --profile app exec -T worker node dist/src/database/migrate.js || true
+docker compose --profile app exec -T worker node dist/src/database/migrate.js
+# commands/ compiles to dist/commands/, while src/ compiles to dist/src/ - the
+# rootDir is the repo root, so the two trees do not share a prefix.
+docker compose --profile app exec -T worker node dist/commands/seed.js
 
 echo "deployment finished" > /var/log/pipeline-deploy-done
 `;
