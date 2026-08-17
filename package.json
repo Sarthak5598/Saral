@@ -27,7 +27,8 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "aws:teardown": "tsx commands/teardownAws.ts"
   },
   "dependencies": {
     "@aws-sdk/client-iam": "^3.1111.0",
