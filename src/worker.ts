@@ -23,7 +23,16 @@ async function main(): Promise<void> {
   const storage = getStorage();
   const scheduler = getScheduler();
 
-  await scheduler.ensureSchedules();
+  /**
+   * `start()` only - deliberately not `ensureSchedules()`.
+   *
+   * Creating the schedule is a provisioning concern, owned by `pnpm aws:provision`.
+   * Having the worker do it on boot meant the instance role needed
+   * scheduler:CreateSchedule, which is write access to its own trigger - a consumer
+   * has no business holding that. Under the AWS driver `start()` is a no-op because
+   * EventBridge already owns the clock; under the local driver it starts the
+   * in-process cron and declares its own schedule.
+   */
   await scheduler.start();
 
   const runner = new JobRunner({
