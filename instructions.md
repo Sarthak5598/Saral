@@ -8,9 +8,34 @@ paginated read API.
 Runs entirely locally by default. Set three environment variables and the same code
 runs on SQS, S3 and EventBridge Scheduler.
 
+Diagrams of the flow and every database field: [ai-usage/diagrams.md](ai-usage/diagrams.md).
+
 ---
 
 ## setup
+
+### The fastest path — local only, no AWS account needed
+
+Six commands, end to end. This is the whole thing running on your machine, against
+the real Meta API, with local disk and an in-memory queue standing in for S3 and SQS:
+
+```bash
+pnpm install
+cp .env.example .env               # then set META_ACCESS_TOKEN
+docker compose up -d               # Postgres + Adminer
+pnpm db:migrate && pnpm db:seed    # creates the tables, tracks "matcha"
+pnpm sync:top matcha               # fetches, dedupes, downloads - the whole pipeline
+pnpm dev                           # starts the API on :3000
+```
+
+Then:
+
+```bash
+curl "http://localhost:3000/hashtags?limit=5"
+```
+
+That is genuinely the entire local path. Everything below is detail, options, and how
+to verify it more thoroughly — nothing past this point is required to see it work.
 
 ### Prerequisites
 

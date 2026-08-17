@@ -9,6 +9,51 @@ implementation.
 
 ---
 
+## How the work was actually done
+
+The shape of the process, roughly in order:
+
+**Scoping.** Started by walking through the brief line by line — what Express + TS +
+Postgres actually implies for structure, what "avoid duplicate media records" requires
+at the database level rather than the application level, and what "up to 500 media
+items per sync" means for pagination and rate limits before writing anything. Part of
+this stage was identifying what I did *not* yet understand well enough to design
+around — Meta's actual hashtag API behaviour under load, SQS's delivery guarantees, and
+what EventBridge Scheduler can and cannot target directly. Those became the things to
+get concrete answers on, by probing the live API and reading the AWS documentation
+next to the code, rather than assuming.
+
+**Design — the tables, and what belongs in each.** This was the largest single piece
+of back-and-forth: given the brief explicitly invites keeping or dropping the suggested
+fields, working through what data actually needs to exist, in which table, and why a
+given table is separate from another rather than merged into it. That meant asking
+questions like: does a metrics history table need its own row every sync, or only on
+change? Does the downloaded file's status belong on the post row, or its own table? Does
+a caption's hashtags need a join table, or can they live as an array on the post? Each
+of those was worked through against a concrete failure case (what breaks if this is
+merged, what breaks if this is split) rather than a general rule, which is why the final
+schema doesn't match the brief's suggested field list exactly.
+
+**Making sure it scales.** Once the shape of the data was settled, the next pass was
+about what happens under real, repeated load rather than a single test run: what a
+table looks like after 8 syncs a day for a year, whether repeated `UPDATE`s on a
+frequently-read table cause problems Postgres has to work around (they do — MVCC row
+rewrites), and where a database constraint has to do the job instead of application
+logic because two things can happen at once (the unique constraint on the post ID,
+which has to hold even if two workers process the same message simultaneously).
+
+**Concurrency and ordering — does downloading a file block anything else?** This came
+up directly: if fetching page 2 of results has to wait for page 1's images to finish
+downloading, a slow or failing download would stall the whole sync. The answer worked
+through was to treat "fetch and record metadata" and "download and store the file" as
+two separate jobs on a queue rather than one sequential piece of work — so a single
+broken video retries on its own without blocking the other 99 posts in that page, and
+without blocking the next page's own metadata write. That distinction — what has to stay
+inside one transaction because it must be consistent, versus what is safe to hand off to
+an independent, retryable job — is what section 5 below is about.
+
+---
+
 ## 1. Reading the brief
 
 The brief asks for four things end to end: fetch from Meta, store in Postgres, upload
@@ -181,3 +226,49 @@ Design changes made after implementation began (notably the metrics-history rede
 in section 4) were driven by that verification process — reviewing what the running
 system actually produced and revising the schema when the first design did not hold up
 under real data volume.
+
+---
+
+## Verifying the AWS deployment
+
+The pipeline also runs unattended in AWS: EventBridge Scheduler fires every 3 hours,
+drops a message on SQS, and a worker on a small EC2 instance picks it up, syncs
+Instagram media, and writes to its own Postgres and S3 bucket — independent of anyone's
+laptop. Three resources make that true regardless of whether a developer's machine is
+on:
+
+| Resource | What it does |
+| --- | --- |
+| EventBridge Scheduler | fires `cron(0 */3 * * ? *)` — every 3 hours, UTC |
+| SQS queue + dead-letter queue | receives the fired event, holds it until a worker reads it |
+| EC2 instance (worker + Postgres + API in Docker) | reads the queue, does the sync, writes to its own database and to S3 |
+
+The instance deliberately exposes nothing but SSH, and only from one IP — this is a
+private database holding third-party content pulled from a public API, not a public
+service, so it is not left open for review. Proof of the deployment working is instead
+a recorded walkthrough: the schedule confirmed `ENABLED`, the instance confirmed running
+with its real launch time (not spun up for the recording), a message sent to the live
+SQS queue on camera, the deployed worker's own logs reacting to it in real time, and a
+row count against the deployed database increasing right after.
+
+This was also genuinely exercised during development, not only at the end:
+
+- A message was manually sent to the live SQS queue and confirmed to arrive and be
+  processed by the deployed worker — writing real rows to Postgres and real files to S3
+  within seconds.
+- A short-lived test schedule (`rate(2 minutes)`, since replaced by the real 3-hourly
+  one) confirmed EventBridge actually delivers into SQS without waiting for a real
+  3-hour boundary.
+- The deployment was rebuilt from scratch on the instance at least twice after fixing
+  real bugs (a package-manager version mismatch between local and Docker, and a
+  compiled-output path issue), so what runs now reflects a working build, not the first
+  attempt.
+
+None of this needs to be trusted blindly — the deployment is scripted and reproducible
+against any AWS account:
+
+```bash
+pnpm aws:provision   # S3 bucket, SQS queue + DLQ, IAM role, EventBridge schedule
+pnpm deploy:ec2      # launches the EC2 instance, starts the containers via cloud-init
+pnpm aws:teardown --yes   # tears all of it back down, instance first
+```

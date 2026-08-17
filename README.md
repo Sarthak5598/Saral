@@ -66,6 +66,42 @@ EventBridge (or node-cron)
 Adding a hashtag is a row insert — the schedule carries no hashtag name, so tracking
 a new tag never requires touching AWS.
 
+### The flow, one sync
+
+```mermaid
+flowchart TD
+  EB["EventBridge<br/><i>fires every 3 hours</i>"] --> SQS["SQS<br/><i>holds the message</i>"]
+  SQS --> W["Worker<br/><i>picks it up</i>"]
+
+  W --> LOOKUP["Read <b>hashtags</b><br/><i>which tags are active right now</i>"]
+  LOOKUP --> LOOP["For each active hashtag..."]
+  LOOP --> META["Call Meta API<br/><i>fetch its posts</i>"]
+
+  META --> DP["Store raw response in <b>data_points</b><br/><i>always saved, untouched</i>"]
+
+  DP --> DEDUPE{"Post ID already<br/>in <b>media_posts</b>?"}
+  DEDUPE -->|"no"| NEW["Insert into <b>media_posts</b><br/><i>one row per post</i>"]
+  DEDUPE -->|"yes"| CHANGE{"Anything about<br/>it changed?"}
+  CHANGE -->|"yes"| HIST["Add row to <b>media_post_history</b>"]
+  CHANGE -->|"no"| SKIP["Skip - nothing to record"]
+
+  NEW --> FILE["Hash the image file<br/><i>sha256</i>"]
+  HIST --> FILE
+  FILE --> EXIST{"That exact file<br/>already in <b>media_assets</b>?"}
+  EXIST -->|"yes"| REUSE["Reuse it<br/><i>no re-upload</i>"]
+  EXIST -->|"no"| SAVE["Save to storage,<br/>record in <b>media_assets</b>"]
+```
+
+The worker never hardcodes `matcha` — it reads `hashtags` first and loops over
+whatever is active, which is why tracking a new tag is a database row rather than a
+code change. Two separate dedupe checks happen here: **the post** is deduped by its
+Instagram ID (`media_posts`), and **the file** is deduped separately by the hash of
+its bytes (`media_assets`) — two different posts can share the same underlying
+image, and reposts on a tag like `matcha` are common enough that this matters.
+
+A longer version of this diagram, plus every field in every table, is at
+[ai-usage/diagrams.md](ai-usage/diagrams.md).
+
 ---
 
 ## Data model
