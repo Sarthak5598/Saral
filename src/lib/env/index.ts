@@ -40,6 +40,12 @@ const schema = z
     SYNC_PAGE_SIZE: z.coerce.number().int().positive().max(50).default(25),
     DOWNLOAD_CONCURRENCY: z.coerce.number().int().positive().max(50).default(5),
     META_THROTTLE_THRESHOLD_PCT: z.coerce.number().int().min(1).max(100).default(80),
+    /**
+     * Generous by default because the hashtag edges are slow - measured at ~8s
+     * per page against v24.0, with occasional stalls beyond 30s. A tight timeout
+     * turns Meta's latency into spurious failures.
+     */
+    META_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
     QUEUE_DRIVER: driver.default('local'),
     STORAGE_DRIVER: driver.default('local'),

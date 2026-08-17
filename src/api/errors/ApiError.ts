@@ -49,3 +49,23 @@ export class MetaRateLimitError extends ApiError {
     super(429, 'META_RATE_LIMITED', message, details);
   }
 }
+
+/**
+ * Meta refused the request because the page was too large - Graph error code 1,
+ * "Please reduce the amount of data you're asking for".
+ *
+ * Its own type because it is recoverable in a specific way: retry the identical
+ * cursor with a smaller `limit`. Verified against v24.0, the practical ceiling on
+ * these edges is far below the documented 50 and differs per edge (top_media
+ * rejected 10, recent_media rejected 25), so the page size has to be negotiated
+ * at runtime rather than configured.
+ */
+export class MetaPayloadTooLargeError extends ApiError {
+  constructor(
+    message: string,
+    readonly attemptedLimit: number,
+    details?: unknown,
+  ) {
+    super(502, 'META_PAYLOAD_TOO_LARGE', message, details);
+  }
+}
