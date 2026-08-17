@@ -60,6 +60,27 @@ export const syncRuns = pgTable(
      */
     rateLimitSnapshot: jsonb('rate_limit_snapshot'),
 
+    /**
+     * Cursor of the last page that was fully persisted.
+     *
+     * This makes a failed run resumable instead of restartable. It matters
+     * because of measured Meta behaviour: the hashtag edges take ~8s per page and
+     * accept only ~6 items per page, so a 500-item sync is ~83 requests over ~11
+     * minutes. Without this, a failure on page 70 discards 70 requests' worth of
+     * work and - worse - re-spends quota that cannot be topped up.
+     *
+     * A retry looks for the most recent unfinished run for the same hashtag and
+     * type, and continues from here.
+     */
+    lastCursor: text('last_cursor'),
+
+    /**
+     * How many times this run has been picked up. Under SQS at-least-once
+     * delivery a message can legitimately be redelivered; this makes a run that
+     * keeps failing and retrying visible rather than invisible.
+     */
+    attempts: integer('attempts').notNull().default(1),
+
     error: text('error'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
