@@ -476,6 +476,15 @@ Two bugs surfaced only by running it for real:
 
 ## ai-usage
 
+**See [ai-usage/design-and-implementation-plan.md](ai-usage/design-and-implementation-plan.md)**
+for the full design and planning record — the sequence of architectural decisions
+(raw/curated split, ports and adapters, deduplication, deployment shape, pagination
+strategy) and why each was made.
+
+**See [ai-usage/verify-aws-deployment.md](ai-usage/verify-aws-deployment.md)** for how
+to confirm the AWS deployment is real and currently running, including what was tested
+end-to-end during development.
+
 ### Tools
 
 **Claude Code (Opus 5)** was the only AI tool used, driven interactively through the
