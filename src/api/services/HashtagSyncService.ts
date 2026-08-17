@@ -8,7 +8,7 @@ import { JobType } from '../../types/jobs';
 import * as HashtagRepository from '../repositories/HashtagRepository';
 import * as MediaAssetRepository from '../repositories/MediaAssetRepository';
 import * as MediaRepository from '../repositories/MediaRepository';
-import * as RawPayloadRepository from '../repositories/RawPayloadRepository';
+import * as DataPointRepository from '../repositories/DataPointRepository';
 import * as SyncRunRepository from '../repositories/SyncRunRepository';
 
 const log = componentLogger('sync-service');
@@ -134,8 +134,8 @@ export class HashtagSyncService {
         ...(options.signal ? { signal: options.signal } : {}),
         ...(run.lastCursor ? { startCursor: run.lastCursor } : {}),
       })) {
-        // 1. Raw first: preserve the response before trusting our own parsing.
-        await RawPayloadRepository.recordPage({
+        // 1. Raw first: preserve the response as data_points before trusting our parsing.
+        await DataPointRepository.recordPage({
           syncRunId: run.id,
           hashtagId,
           source: kind,
@@ -146,6 +146,7 @@ export class HashtagSyncService {
 
         let pageNew = 0;
         let pageUpdated = 0;
+        let pageHistory = 0;
         let pageAssetJobs = 0;
 
         // 2. Curated, one item at a time so a single malformed item cannot lose
@@ -164,6 +165,11 @@ export class HashtagSyncService {
           }
           if (result.contentChanged) {
             pageUpdated += 1;
+          }
+          // Lower than the item count by design: history is written only when an
+          // observable value actually differed from the previous row.
+          if (result.historyRecorded) {
+            pageHistory += 1;
           }
 
           // 3. One download job per asset, not one per sync. A 404 video must fail
@@ -191,6 +197,7 @@ export class HashtagSyncService {
           itemsSeen: page.items.length,
           itemsNew: pageNew,
           itemsUpdated: pageUpdated,
+          metricsRecorded: pageHistory,
           assetJobsEnqueued: pageAssetJobs,
           lastCursor: page.nextCursor,
           rateLimit: page.rateLimit,
@@ -202,6 +209,7 @@ export class HashtagSyncService {
             items: page.items.length,
             new: pageNew,
             updated: pageUpdated,
+            historyRows: pageHistory,
             totalSeen: itemsSeen,
             usagePct: page.rateLimit?.worstPct,
           },

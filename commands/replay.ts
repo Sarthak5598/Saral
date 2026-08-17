@@ -1,7 +1,7 @@
 import { metaMediaSchema } from '../src/lib/meta/types';
 import { componentLogger } from '../src/lib/logger';
 import * as MediaRepository from '../src/api/repositories/MediaRepository';
-import * as RawPayloadRepository from '../src/api/repositories/RawPayloadRepository';
+import * as DataPointRepository from '../src/api/repositories/DataPointRepository';
 import * as SyncRunRepository from '../src/api/repositories/SyncRunRepository';
 import { requireArg, runCommand } from './_runner';
 
@@ -21,7 +21,7 @@ const log = componentLogger('cmd:replay');
  *   - media_url is a signed link that expires within days, so even with quota to
  *     spare the assets behind an old response are gone.
  *
- * So without raw_media_payloads, a parsing bug found on Friday means last Tuesday's
+ * So without data_points, a parsing bug found on Friday means last Tuesday's
  * data is lost permanently. With it, the fix costs CPU and nothing else - no API
  * calls, no quota, no network.
  *
@@ -35,7 +35,7 @@ runCommand('replay', async () => {
     throw new Error(`sync run ${syncRunId} not found`);
   }
 
-  const payloads = await RawPayloadRepository.findByRunId(syncRunId);
+  const payloads = await DataPointRepository.findByRunId(syncRunId);
 
   if (payloads.length === 0) {
     throw new Error(`sync run ${syncRunId} recorded no raw payloads - nothing to replay`);

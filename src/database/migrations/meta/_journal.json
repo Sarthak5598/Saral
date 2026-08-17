@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1786959075561,
+      "when": 1786979709372,
       "tag": "0000_initial_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1786962048299,
-      "tag": "0001_resumable_sync_runs",
       "breakpoints": true
     }
   ]

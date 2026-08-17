@@ -129,7 +129,7 @@ than overwriting it:
 ```sql
 SELECT m.ig_media_id, count(*) AS observations,
        min(s.like_count) AS first, max(s.like_count) AS latest
-FROM media_metric_snapshots s JOIN hashtag_media m ON m.id = s.media_id
+FROM media_post_history s JOIN media_posts m ON m.id = s.media_id
 GROUP BY m.ig_media_id HAVING count(*) > 1 ORDER BY 2 DESC LIMIT 5;
 ```
 
@@ -191,7 +191,7 @@ downloads.
 | `pnpm sync:recent [name]`      | Same for recent media; no argument means all due hashtags         |
 | `pnpm replay <sync_run_id>`    | Rebuild curated tables from raw payloads, spending zero API quota |
 | `pnpm aws:provision`           | Create the S3 bucket, SQS queues, IAM role and schedule           |
-| `pnpm test`                    | 43 unit tests                                                    |
+| `pnpm test`                    | 46 unit tests                                                    |
 | `pnpm lint` / `pnpm typecheck` | ESLint / tsc                                                     |
 
 ### Tracking a different hashtag
@@ -375,7 +375,7 @@ runs are resumable.
 
 ### Kept, and why
 
-- **A raw landing layer** (`raw_media_payloads`, append-only JSONB). Normally
+- **A raw landing layer** (`data_points`, append-only JSONB). Normally
   optional; close to essential here, because two constraints make re-fetching
   impossible rather than merely expensive: the 30-unique-hashtags-per-7-days quota
   cannot be topped up, and `media_url` expires within days. Without it, a parsing bug
@@ -388,7 +388,7 @@ runs are resumable.
 - **Content-addressed storage.** Keys are `media/<ab>/<cd>/<sha256>.<ext>`, the same
   scheme git uses. Two different posts can be byte-identical, so this stores reposts
   once and makes repost clusters queryable as rows sharing a `sha256`.
-- **Four distinct timestamps** on `hashtag_media`: `taken_at`, `first_seen_at`,
+- **Four distinct timestamps** on `media_posts`: `taken_at`, `first_seen_at`,
   `last_seen_at`, `content_updated_at`. The last is bumped only when the caption,
   permalink or type actually changed — setting `updated_at = now()` on every sync
   makes every row look freshly edited when nothing happened.
@@ -418,7 +418,7 @@ runs are resumable.
   `CAROUSEL_ALBUM` yields one cover image and one file per post.
 - **Auth, CI, Swagger, a frontend.** Out of scope for a brief that states
   production-readiness is not expected.
-- **PollyJS** for HTTP record/replay. The 43 tests stub `fetch` against recorded
+- **PollyJS** for HTTP record/replay. The 46 tests stub `fetch` against recorded
   response shapes, which achieves the same isolation without a dependency. Worth
   revisiting if the API surface grew beyond three endpoints.
 
@@ -428,7 +428,7 @@ runs are resumable.
   `caption`, `media_type`, `media_url`, `permalink`, `timestamp`, `like_count`,
   `comments_count`. No username, follower count, or place — Meta strips these for
   media on accounts you do not own. The caption is therefore the only enrichment
-  surface, parsed into `media_caption_entities` for hashtag co-occurrence and
+  surface, parsed into `caption arrays on media_posts` for hashtag co-occurrence and
   mentions. Those values are **derived, not authoritative**: `#kyoto` is a soft
   geographic hint, never a location field.
 - **The access token will expire.** When it does, Meta returns Graph code 190. That

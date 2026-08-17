@@ -36,12 +36,12 @@ EventBridge Scheduler with no code changes.
               ┌───────────────────┐                 ┌────────────────────┐
               │  Postgres         │                 │  Object storage    │
               │                   │                 │                    │
-              │  raw payloads     │                 │  S3                │
-              │  curated media    │                 │    -- or --        │
-              │  metric snapshots │                 │  local disk        │
-              │  assets           │                 │                    │
-              │  caption entities │                 │  keyed by sha256   │
-              │  sync run audit   │                 │                    │
+              │  data_points      │                 │  S3                │
+              │  media_posts      │                 │    -- or --        │
+              │  media_post_      │                 │  local disk        │
+              │     history       │                 │                    │
+              │  media_assets     │                 │  keyed by sha256   │
+              │  sync_runs        │                 │                    │
               └─────────┬─────────┘                 └────────────────────┘
                         │
                         ▼
@@ -76,11 +76,15 @@ Two layers, raw then curated.
 | --- | --- |
 | `hashtags` | what is tracked, with an optional tracking window |
 | `sync_runs` | one row per ingestion attempt: pages, counts, duration, cursor, errors |
-| `raw_media_payloads` | exactly what Meta returned, as JSONB. **Append-only** |
-| `hashtag_media` | one row per unique post. `UNIQUE(ig_media_id)` |
-| `media_metric_snapshots` | likes/comments/rank over time. **Append-only** |
+| `data_points` | exactly what Meta returned, as JSONB. **Append-only** |
+| `media_posts` | one row per unique post. `UNIQUE(ig_media_id)` |
+| `media_post_history` | a copy of the post each time its state changed. **Append-only** |
 | `media_assets` | the durable file copy, content-addressed by sha256 |
-| `media_caption_entities` | hashtags and mentions parsed from captions |
+
+Caption hashtags and mentions live as `text[]` columns on `media_posts` rather than in
+their own table: Instagram caps a caption at 30 hashtags, so the list is bounded, and
+the caption belongs to the post rather than to a measurement. Postgres arrays are
+GIN-indexable, so co-occurrence is still one query.
 
 **Why a raw layer.** Meta permits only 30 unique hashtags per rolling 7 days, and
 `media_url` expires within days — so re-fetching is impossible, not merely expensive.
@@ -88,10 +92,16 @@ Without raw payloads, a parsing bug found on Friday loses Tuesday's data forever
 `pnpm replay <sync_run_id>` rebuilds the curated tables from them, spending zero API
 quota.
 
-**Why snapshots instead of overwriting.** `like_count` is an observation, not an
+**Why history instead of overwriting.** `like_count` is an observation, not an
 attribute. A post at 594 likes today and 1,200 next week is information — engagement
-velocity, what is trending — and `UPDATE` destroys it permanently. Verified on live
-data: one post moved 3 → 6 likes across runs.
+velocity, what is trending — and `UPDATE` destroys it permanently.
+
+History rows are written **only when something actually changed**, and
+`changed_fields` records which fields moved, so "why does this row exist" is
+answerable without diffing. Verified on live data: 36 observations produced 27 history
+rows, with 9 correctly skipped as unchanged, and one row reading just `{likeCount}`.
+The cost is that a gap no longer distinguishes "unchanged" from "not checked" —
+`sync_runs` resolves that, since it records every run and the hashtag it covered.
 
 **Why sha256 keys.** Two different posts can be byte-identical; reposts are common on
 a tag like matcha. Content addressing stores the file once and makes repost clusters
@@ -139,4 +149,4 @@ Full detail, including two bugs that only surfaced by running it, is in
 TypeScript, Express, Postgres 16, Drizzle ORM, Zod, pino, Vitest, Docker Compose,
 AWS SDK v3 (S3, SQS, EventBridge Scheduler, IAM, STS).
 
-`pnpm test` — 43 tests. `pnpm typecheck` / `pnpm lint`.
+`pnpm test` — 46 tests. `pnpm typecheck` / `pnpm lint`.

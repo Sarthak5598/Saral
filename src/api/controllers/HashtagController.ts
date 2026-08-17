@@ -76,6 +76,11 @@ hashtagRouter.get('/hashtags', async (req, res, next) => {
         caption: row.caption,
         permalink: row.permalink,
 
+        // Parsed from the caption - the only enrichment Meta permits, since hashtag
+        // search returns no owner or location. Derived, not authoritative.
+        captionHashtags: row.captionHashtags ?? [],
+        captionMentions: row.captionMentions ?? [],
+
         takenAt: row.takenAt.toISOString(),
 
         metrics: {

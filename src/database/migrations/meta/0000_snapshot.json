@@ -1,5 +1,5 @@
 {
-  "id": "c7f24a00-a8e9-42d5-aead-4609444b4035",
+  "id": "80f03510-375d-4f29-92ae-27fdac5fe720",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -258,6 +258,13 @@
           "notNull": true,
           "default": 0
         },
+        "metrics_recorded": {
+          "name": "metrics_recorded",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "asset_jobs_enqueued": {
           "name": "asset_jobs_enqueued",
           "type": "integer",
@@ -277,6 +284,19 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "last_cursor": {
+          "name": "last_cursor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "error": {
           "name": "error",
@@ -372,8 +392,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.raw_media_payloads": {
-      "name": "raw_media_payloads",
+    "public.data_points": {
+      "name": "data_points",
       "schema": "",
       "columns": {
         "id": {
@@ -441,8 +461,8 @@
         }
       },
       "indexes": {
-        "raw_media_payloads_ig_media_id_idx": {
-          "name": "raw_media_payloads_ig_media_id_idx",
+        "data_points_ig_media_id_idx": {
+          "name": "data_points_ig_media_id_idx",
           "columns": [
             {
               "expression": "ig_media_id",
@@ -456,8 +476,8 @@
           "method": "btree",
           "with": {}
         },
-        "raw_media_payloads_sync_run_idx": {
-          "name": "raw_media_payloads_sync_run_idx",
+        "data_points_sync_run_idx": {
+          "name": "data_points_sync_run_idx",
           "columns": [
             {
               "expression": "sync_run_id",
@@ -471,8 +491,8 @@
           "method": "btree",
           "with": {}
         },
-        "raw_media_payloads_hashtag_fetched_idx": {
-          "name": "raw_media_payloads_hashtag_fetched_idx",
+        "data_points_hashtag_fetched_idx": {
+          "name": "data_points_hashtag_fetched_idx",
           "columns": [
             {
               "expression": "hashtag_id",
@@ -494,9 +514,9 @@
         }
       },
       "foreignKeys": {
-        "raw_media_payloads_sync_run_id_sync_runs_id_fk": {
-          "name": "raw_media_payloads_sync_run_id_sync_runs_id_fk",
-          "tableFrom": "raw_media_payloads",
+        "data_points_sync_run_id_sync_runs_id_fk": {
+          "name": "data_points_sync_run_id_sync_runs_id_fk",
+          "tableFrom": "data_points",
           "tableTo": "sync_runs",
           "columnsFrom": [
             "sync_run_id"
@@ -507,9 +527,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "raw_media_payloads_hashtag_id_hashtags_id_fk": {
-          "name": "raw_media_payloads_hashtag_id_hashtags_id_fk",
-          "tableFrom": "raw_media_payloads",
+        "data_points_hashtag_id_hashtags_id_fk": {
+          "name": "data_points_hashtag_id_hashtags_id_fk",
+          "tableFrom": "data_points",
           "tableTo": "hashtags",
           "columnsFrom": [
             "hashtag_id"
@@ -527,8 +547,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.hashtag_media": {
-      "name": "hashtag_media",
+    "public.media_posts": {
+      "name": "media_posts",
       "schema": "",
       "columns": {
         "id": {
@@ -572,6 +592,18 @@
         "source_media_url": {
           "name": "source_media_url",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "caption_hashtags": {
+          "name": "caption_hashtags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "caption_mentions": {
+          "name": "caption_mentions",
+          "type": "text[]",
           "primaryKey": false,
           "notNull": false
         },
@@ -669,8 +701,8 @@
         }
       },
       "indexes": {
-        "hashtag_media_ig_media_id_unique": {
-          "name": "hashtag_media_ig_media_id_unique",
+        "media_posts_ig_media_id_unique": {
+          "name": "media_posts_ig_media_id_unique",
           "columns": [
             {
               "expression": "ig_media_id",
@@ -684,8 +716,8 @@
           "method": "btree",
           "with": {}
         },
-        "hashtag_media_hashtag_taken_at_idx": {
-          "name": "hashtag_media_hashtag_taken_at_idx",
+        "media_posts_hashtag_taken_at_idx": {
+          "name": "media_posts_hashtag_taken_at_idx",
           "columns": [
             {
               "expression": "hashtag_id",
@@ -711,8 +743,8 @@
           "method": "btree",
           "with": {}
         },
-        "hashtag_media_last_seen_idx": {
-          "name": "hashtag_media_last_seen_idx",
+        "media_posts_last_seen_idx": {
+          "name": "media_posts_last_seen_idx",
           "columns": [
             {
               "expression": "last_seen_at",
@@ -726,8 +758,8 @@
           "method": "btree",
           "with": {}
         },
-        "hashtag_media_media_type_idx": {
-          "name": "hashtag_media_media_type_idx",
+        "media_posts_media_type_idx": {
+          "name": "media_posts_media_type_idx",
           "columns": [
             {
               "expression": "media_type",
@@ -743,9 +775,9 @@
         }
       },
       "foreignKeys": {
-        "hashtag_media_hashtag_id_hashtags_id_fk": {
-          "name": "hashtag_media_hashtag_id_hashtags_id_fk",
-          "tableFrom": "hashtag_media",
+        "media_posts_hashtag_id_hashtags_id_fk": {
+          "name": "media_posts_hashtag_id_hashtags_id_fk",
+          "tableFrom": "media_posts",
           "tableTo": "hashtags",
           "columnsFrom": [
             "hashtag_id"
@@ -763,8 +795,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.media_metric_snapshots": {
-      "name": "media_metric_snapshots",
+    "public.media_post_history": {
+      "name": "media_post_history",
       "schema": "",
       "columns": {
         "id": {
@@ -780,11 +812,54 @@
           "primaryKey": false,
           "notNull": true
         },
+        "hashtag_id": {
+          "name": "hashtag_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "sync_run_id": {
           "name": "sync_run_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "ig_media_id": {
+          "name": "ig_media_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "media_type": {
+          "name": "media_type",
+          "type": "media_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "caption": {
+          "name": "caption",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permalink": {
+          "name": "permalink",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "caption_hashtags": {
+          "name": "caption_hashtags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "caption_mentions": {
+          "name": "caption_mentions",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
         },
         "like_count": {
           "name": "like_count",
@@ -811,6 +886,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "changed_fields": {
+          "name": "changed_fields",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
         "captured_at": {
           "name": "captured_at",
           "type": "timestamp with time zone",
@@ -820,8 +901,8 @@
         }
       },
       "indexes": {
-        "media_metric_snapshots_media_run_unique": {
-          "name": "media_metric_snapshots_media_run_unique",
+        "media_post_history_media_run_unique": {
+          "name": "media_post_history_media_run_unique",
           "columns": [
             {
               "expression": "media_id",
@@ -841,8 +922,8 @@
           "method": "btree",
           "with": {}
         },
-        "media_metric_snapshots_media_captured_idx": {
-          "name": "media_metric_snapshots_media_captured_idx",
+        "media_post_history_media_captured_idx": {
+          "name": "media_post_history_media_captured_idx",
           "columns": [
             {
               "expression": "media_id",
@@ -862,9 +943,15 @@
           "method": "btree",
           "with": {}
         },
-        "media_metric_snapshots_captured_at_idx": {
-          "name": "media_metric_snapshots_captured_at_idx",
+        "media_post_history_hashtag_captured_idx": {
+          "name": "media_post_history_hashtag_captured_idx",
           "columns": [
+            {
+              "expression": "hashtag_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "captured_at",
               "isExpression": false,
@@ -879,10 +966,10 @@
         }
       },
       "foreignKeys": {
-        "media_metric_snapshots_media_id_hashtag_media_id_fk": {
-          "name": "media_metric_snapshots_media_id_hashtag_media_id_fk",
-          "tableFrom": "media_metric_snapshots",
-          "tableTo": "hashtag_media",
+        "media_post_history_media_id_media_posts_id_fk": {
+          "name": "media_post_history_media_id_media_posts_id_fk",
+          "tableFrom": "media_post_history",
+          "tableTo": "media_posts",
           "columnsFrom": [
             "media_id"
           ],
@@ -892,9 +979,22 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "media_metric_snapshots_sync_run_id_sync_runs_id_fk": {
-          "name": "media_metric_snapshots_sync_run_id_sync_runs_id_fk",
-          "tableFrom": "media_metric_snapshots",
+        "media_post_history_hashtag_id_hashtags_id_fk": {
+          "name": "media_post_history_hashtag_id_hashtags_id_fk",
+          "tableFrom": "media_post_history",
+          "tableTo": "hashtags",
+          "columnsFrom": [
+            "hashtag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "media_post_history_sync_run_id_sync_runs_id_fk": {
+          "name": "media_post_history_sync_run_id_sync_runs_id_fk",
+          "tableFrom": "media_post_history",
           "tableTo": "sync_runs",
           "columnsFrom": [
             "sync_run_id"
@@ -1061,119 +1161,10 @@
         }
       },
       "foreignKeys": {
-        "media_assets_media_id_hashtag_media_id_fk": {
-          "name": "media_assets_media_id_hashtag_media_id_fk",
+        "media_assets_media_id_media_posts_id_fk": {
+          "name": "media_assets_media_id_media_posts_id_fk",
           "tableFrom": "media_assets",
-          "tableTo": "hashtag_media",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.media_caption_entities": {
-      "name": "media_caption_entities",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "media_id": {
-          "name": "media_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "caption_entity_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "value": {
-          "name": "value",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "media_caption_entities_media_type_value_unique": {
-          "name": "media_caption_entities_media_type_value_unique",
-          "columns": [
-            {
-              "expression": "media_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "value",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_caption_entities_type_value_idx": {
-          "name": "media_caption_entities_type_value_idx",
-          "columns": [
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "value",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "media_caption_entities_media_id_hashtag_media_id_fk": {
-          "name": "media_caption_entities_media_id_hashtag_media_id_fk",
-          "tableFrom": "media_caption_entities",
-          "tableTo": "hashtag_media",
+          "tableTo": "media_posts",
           "columnsFrom": [
             "media_id"
           ],
@@ -1201,14 +1192,6 @@
         "stored",
         "failed",
         "skipped"
-      ]
-    },
-    "public.caption_entity_type": {
-      "name": "caption_entity_type",
-      "schema": "public",
-      "values": [
-        "hashtag",
-        "mention"
       ]
     },
     "public.media_source": {

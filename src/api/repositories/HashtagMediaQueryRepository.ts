@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '../../database/client';
-import { hashtagMedia, hashtags, mediaAssets } from '../models';
+import { hashtags, mediaAssets, mediaPosts } from '../models';
 
 export interface ListMediaFilters {
   hashtag?: string | undefined;
@@ -19,6 +19,8 @@ export interface ListMediaRow {
   hashtagName: string;
   mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
   caption: string | null;
+  captionHashtags: string[] | null;
+  captionMentions: string[] | null;
   permalink: string;
   takenAt: Date;
   likeCount: number | null;
@@ -41,7 +43,7 @@ export interface ListMediaRow {
  * Reads stored media, newest post first, using keyset pagination.
  *
  * The ordering is (taken_at DESC, id DESC) and is backed by
- * hashtag_media_hashtag_taken_at_idx. `id` is in the sort key because Instagram
+ * media_posts_hashtag_taken_at_idx. `id` is in the sort key because Instagram
  * timestamps are not unique - without it the ordering is not total, and a cursor
  * built on a duplicated timestamp would either repeat or skip rows.
  */
@@ -55,19 +57,19 @@ export async function listMedia(
   }
 
   if (filters.mediaType) {
-    conditions.push(eq(hashtagMedia.mediaType, filters.mediaType));
+    conditions.push(eq(mediaPosts.mediaType, filters.mediaType));
   }
 
   if (filters.takenAfter) {
-    conditions.push(gte(hashtagMedia.takenAt, filters.takenAfter));
+    conditions.push(gte(mediaPosts.takenAt, filters.takenAfter));
   }
 
   if (filters.takenBefore) {
-    conditions.push(lte(hashtagMedia.takenAt, filters.takenBefore));
+    conditions.push(lte(mediaPosts.takenAt, filters.takenBefore));
   }
 
   if (!filters.includeStale) {
-    conditions.push(eq(hashtagMedia.isStale, false));
+    conditions.push(eq(mediaPosts.isStale, false));
   }
 
   /**
@@ -79,10 +81,10 @@ export async function listMedia(
   if (filters.cursor) {
     conditions.push(
       or(
-        lt(hashtagMedia.takenAt, filters.cursor.takenAt),
+        lt(mediaPosts.takenAt, filters.cursor.takenAt),
         and(
-          eq(hashtagMedia.takenAt, filters.cursor.takenAt),
-          lt(hashtagMedia.id, filters.cursor.id),
+          eq(mediaPosts.takenAt, filters.cursor.takenAt),
+          lt(mediaPosts.id, filters.cursor.id),
         ),
       ) as SQL,
     );
@@ -93,35 +95,37 @@ export async function listMedia(
   // page just returned.
   const rows = await db
     .select({
-      id: hashtagMedia.id,
-      igMediaId: hashtagMedia.igMediaId,
+      id: mediaPosts.id,
+      igMediaId: mediaPosts.igMediaId,
       hashtagName: hashtags.name,
-      mediaType: hashtagMedia.mediaType,
-      caption: hashtagMedia.caption,
-      permalink: hashtagMedia.permalink,
-      takenAt: hashtagMedia.takenAt,
-      likeCount: hashtagMedia.likeCount,
-      commentsCount: hashtagMedia.commentsCount,
-      bestTopRank: hashtagMedia.bestTopRank,
-      seenInTop: hashtagMedia.seenInTop,
-      seenInRecent: hashtagMedia.seenInRecent,
-      isStale: hashtagMedia.isStale,
-      firstSeenAt: hashtagMedia.firstSeenAt,
-      lastSeenAt: hashtagMedia.lastSeenAt,
-      contentUpdatedAt: hashtagMedia.contentUpdatedAt,
+      mediaType: mediaPosts.mediaType,
+      caption: mediaPosts.caption,
+      captionHashtags: mediaPosts.captionHashtags,
+      captionMentions: mediaPosts.captionMentions,
+      permalink: mediaPosts.permalink,
+      takenAt: mediaPosts.takenAt,
+      likeCount: mediaPosts.likeCount,
+      commentsCount: mediaPosts.commentsCount,
+      bestTopRank: mediaPosts.bestTopRank,
+      seenInTop: mediaPosts.seenInTop,
+      seenInRecent: mediaPosts.seenInRecent,
+      isStale: mediaPosts.isStale,
+      firstSeenAt: mediaPosts.firstSeenAt,
+      lastSeenAt: mediaPosts.lastSeenAt,
+      contentUpdatedAt: mediaPosts.contentUpdatedAt,
       assetStatus: mediaAssets.status,
       assetKey: mediaAssets.storageKey,
       assetSha256: mediaAssets.sha256,
       assetSizeBytes: mediaAssets.sizeBytes,
       assetContentType: mediaAssets.contentType,
     })
-    .from(hashtagMedia)
-    .innerJoin(hashtags, eq(hashtags.id, hashtagMedia.hashtagId))
+    .from(mediaPosts)
+    .innerJoin(hashtags, eq(hashtags.id, mediaPosts.hashtagId))
     // LEFT so media whose download failed or is pending still appears - hiding it
     // would misrepresent what has been collected.
-    .leftJoin(mediaAssets, eq(mediaAssets.mediaId, hashtagMedia.id))
+    .leftJoin(mediaAssets, eq(mediaAssets.mediaId, mediaPosts.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(hashtagMedia.takenAt), desc(hashtagMedia.id))
+    .orderBy(desc(mediaPosts.takenAt), desc(mediaPosts.id))
     .limit(filters.limit + 1);
 
   const hasMore = rows.length > filters.limit;
@@ -139,16 +143,16 @@ export async function countMedia(
     conditions.push(eq(hashtags.name, filters.hashtag.replace(/^#+/, '').toLowerCase()));
   }
   if (filters.mediaType) {
-    conditions.push(eq(hashtagMedia.mediaType, filters.mediaType));
+    conditions.push(eq(mediaPosts.mediaType, filters.mediaType));
   }
   if (!filters.includeStale) {
-    conditions.push(eq(hashtagMedia.isStale, false));
+    conditions.push(eq(mediaPosts.isStale, false));
   }
 
   const [row] = await db
     .select({ total: sql<number>`count(*)::int` })
-    .from(hashtagMedia)
-    .innerJoin(hashtags, eq(hashtags.id, hashtagMedia.hashtagId))
+    .from(mediaPosts)
+    .innerJoin(hashtags, eq(hashtags.id, mediaPosts.hashtagId))
     .where(conditions.length > 0 ? and(...conditions) : undefined);
 
   return row?.total ?? 0;

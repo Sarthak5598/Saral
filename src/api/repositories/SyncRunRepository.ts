@@ -75,6 +75,7 @@ export async function recordPageProgress(
     itemsSeen: number;
     itemsNew: number;
     itemsUpdated: number;
+    metricsRecorded: number;
     assetJobsEnqueued: number;
     lastCursor?: string | undefined;
     rateLimit?: RateLimitUsage | undefined;
@@ -87,6 +88,7 @@ export async function recordPageProgress(
       itemsSeen: sql`${syncRuns.itemsSeen} + ${delta.itemsSeen}`,
       itemsNew: sql`${syncRuns.itemsNew} + ${delta.itemsNew}`,
       itemsUpdated: sql`${syncRuns.itemsUpdated} + ${delta.itemsUpdated}`,
+      metricsRecorded: sql`${syncRuns.metricsRecorded} + ${delta.metricsRecorded}`,
       assetJobsEnqueued: sql`${syncRuns.assetJobsEnqueued} + ${delta.assetJobsEnqueued}`,
       // NULL means "no further pages" - preserve it rather than clobbering a
       // valid cursor with undefined.

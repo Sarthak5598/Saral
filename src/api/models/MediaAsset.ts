@@ -10,18 +10,26 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { assetStatusEnum } from './enums';
-import { hashtagMedia } from './HashtagMedia';
+import { mediaPosts } from './MediaPost';
 
 /**
  * The durable copy of each media file, and the record of getting it there.
  *
- * This table is the answer to the expiring-URL problem: Meta's `media_url` is a
- * signed CDN link valid for days, so storing only the URL produces an app that
- * works today and shows broken images next week. The bytes have to be copied.
+ * This table is the answer to the expiring-URL problem: Meta's media_url is a signed
+ * CDN link valid for days, so storing only the URL produces an app that works today
+ * and shows broken images next week. The bytes have to be copied.
  *
- * Separate from hashtag_media rather than folded into it because download is an
- * independent, retryable, failure-prone operation with its own lifecycle. One
- * 404 video must not invalidate the metadata for 499 healthy posts.
+ * Separate from media_posts even though the relationship is one-to-one, for two
+ * reasons:
+ *
+ *  1. Write churn. Postgres rewrites an entire row on every UPDATE (MVCC), and a
+ *     download moves through pending -> downloading -> stored. Merged, those three
+ *     rewrites would hit the widest, most-read table for every file on every run,
+ *     bloating the table the read API depends on. Here they hit a narrow row nobody
+ *     reads on the request path.
+ *  2. Independent lifecycle. Downloads are slow and fail; metadata writes are fast and
+ *     reliable. One 404 video must fail on its own without touching the metadata of
+ *     the other posts.
  */
 export const mediaAssets = pgTable(
   'media_assets',
@@ -30,7 +38,7 @@ export const mediaAssets = pgTable(
 
     mediaId: uuid('media_id')
       .notNull()
-      .references(() => hashtagMedia.id, { onDelete: 'cascade' }),
+      .references(() => mediaPosts.id, { onDelete: 'cascade' }),
 
     status: assetStatusEnum('status').notNull().default('pending'),
 
@@ -39,32 +47,33 @@ export const mediaAssets = pgTable(
      *
      * Content-addressing rather than keying by media ID, because two different
      * Instagram posts can be byte-identical - reposts are common on a tag like
-     * #matcha. Hashing means the file is stored once no matter how many posts
-     * carry it, and it makes reposts detectable: several media rows sharing one
-     * sha256 is a repost cluster.
+     * #matcha. Hashing means the file is stored once no matter how many posts carry it,
+     * and it makes reposts detectable: several rows sharing one sha256 is a repost
+     * cluster.
      *
      * NULL until the download completes, since the hash is only knowable then.
      */
     sha256: text('sha256'),
 
     /**
-     * Provider-agnostic object key, e.g. `media/ab/cd/abcdef...jpg`. The two-level
-     * prefix from the hash keeps directory fan-out sane on the local driver and
-     * spreads S3 key space.
+     * Provider-agnostic object key, e.g. `media/ab/cd/abcdef...jpg` - the same scheme
+     * git uses for its object store. The two-level prefix keeps directory fan-out
+     * manageable on local disk and spreads S3 key space.
      */
     storageKey: text('storage_key'),
-    /** Which driver wrote it - 'local' or 's3'. Recorded so a mixed-provider */
-    /** dataset stays unambiguous after a migration from disk to S3. */
+    /**
+     * Which driver wrote it - 'local' or 's3'. Recorded so a dataset spanning a
+     * migration from disk to S3 stays unambiguous.
+     */
     storageProvider: text('storage_provider'),
 
     contentType: text('content_type'),
-    /** bigint: video assets exceed the 2GB int4 ceiling far less often than */
-    /** the cost of getting this wrong once. */
+    /** bigint because video exceeds the int4 ceiling more often than it is worth risking. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
 
     /**
-     * The URL the bytes were actually fetched from, kept for forensics only.
-     * It will be expired by the time anyone reads it.
+     * The URL the bytes were fetched from, kept for forensics only. It will be expired
+     * by the time anyone reads it.
      */
     fetchedFromUrl: text('fetched_from_url'),
 
@@ -80,15 +89,15 @@ export const mediaAssets = pgTable(
   },
   (table) => ({
     /**
-     * One asset row per media. Given the `children` edge is unavailable for
-     * hashtag search, a post - carousel included - yields exactly one file, so
-     * this is a safe constraint and it makes the download job idempotent.
+     * One asset row per post. Since `children` is unavailable for hashtag search, a
+     * post - carousel included - yields exactly one file, so this is safe and it makes
+     * the download job idempotent.
      */
     mediaUnique: uniqueIndex('media_assets_media_unique').on(table.mediaId),
 
-    /** Finds the repost clusters, and lets an upload skip bytes already stored. */
+    /** Finds repost clusters, and lets an upload skip bytes already stored. */
     sha256Idx: index('media_assets_sha256_idx').on(table.sha256),
-    /** Drives the retry sweep for pending/failed downloads. */
+    /** Drives the retry sweep for pending and failed downloads. */
     statusIdx: index('media_assets_status_idx').on(table.status),
   }),
 );

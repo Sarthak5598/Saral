@@ -44,6 +44,25 @@ function normalize(raw: string): string {
   return raw.toLowerCase().slice(0, MAX_VALUE_LENGTH);
 }
 
+/**
+ * The same extraction, shaped for the two array columns on media_posts.
+ *
+ * Kept as a separate function rather than replacing parseCaptionEntities because the
+ * flat entity list is the natural unit to test against, while the arrays are what the
+ * schema stores.
+ */
+export function parseCaptionArrays(caption: string | null | undefined): {
+  hashtags: string[];
+  mentions: string[];
+} {
+  const entities = parseCaptionEntities(caption);
+
+  return {
+    hashtags: entities.filter((e) => e.type === 'hashtag').map((e) => e.value),
+    mentions: entities.filter((e) => e.type === 'mention').map((e) => e.value),
+  };
+}
+
 export function parseCaptionEntities(caption: string | null | undefined): CaptionEntity[] {
   if (!caption) {
     return [];

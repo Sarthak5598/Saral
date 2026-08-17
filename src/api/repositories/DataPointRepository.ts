@@ -2,11 +2,11 @@ import { asc, eq } from 'drizzle-orm';
 
 import { db } from '../../database/client';
 import type { MetaMedia } from '../../lib/meta/types';
-import type { RawMediaPayload } from '../models';
-import { rawMediaPayloads } from '../models';
+import type { DataPoint } from '../models';
+import { dataPoints } from '../models';
 
 /**
- * Writes to the raw landing layer.
+ * Writes to the raw landing layer (data_points).
  *
  * Append-only and never deduplicated. The same post appearing on three
  * consecutive runs correctly produces three rows - the table records what Meta
@@ -25,7 +25,7 @@ export async function recordPage(input: {
     return;
   }
 
-  await db.insert(rawMediaPayloads).values(
+  await db.insert(dataPoints).values(
     input.items.map((item, index) => ({
       syncRunId: input.syncRunId,
       hashtagId: input.hashtagId,
@@ -48,19 +48,19 @@ export async function recordPage(input: {
  * Backs `pnpm replay`: the curated tables can be rebuilt from here without a
  * single API call, so a parsing bug costs nothing but CPU to fix retroactively.
  */
-export async function findByRunId(syncRunId: string): Promise<RawMediaPayload[]> {
+export async function findByRunId(syncRunId: string): Promise<DataPoint[]> {
   return db
     .select()
-    .from(rawMediaPayloads)
-    .where(eq(rawMediaPayloads.syncRunId, syncRunId))
-    .orderBy(asc(rawMediaPayloads.positionOverall));
+    .from(dataPoints)
+    .where(eq(dataPoints.syncRunId, syncRunId))
+    .orderBy(asc(dataPoints.positionOverall));
 }
 
 export async function countByRunId(syncRunId: string): Promise<number> {
   const rows = await db
-    .select({ count: rawMediaPayloads.id })
-    .from(rawMediaPayloads)
-    .where(eq(rawMediaPayloads.syncRunId, syncRunId));
+    .select({ count: dataPoints.id })
+    .from(dataPoints)
+    .where(eq(dataPoints.syncRunId, syncRunId));
 
   return rows.length;
 }

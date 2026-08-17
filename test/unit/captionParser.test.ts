@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseCaptionEntities } from '../../src/api/services/captionParser';
+import {
+  parseCaptionArrays,
+  parseCaptionEntities,
+} from '../../src/api/services/captionParser';
 
 function hashtags(caption: string): string[] {
   return parseCaptionEntities(caption)
@@ -70,5 +73,28 @@ describe('parseCaptionEntities', () => {
     // Not ideal, but documented: Instagram captions rarely contain emails, and
     // over-engineering the parser to exclude them risks dropping real mentions.
     expect(mentions('reach me at hi@somecafe')).toEqual(['somecafe']);
+  });
+});
+
+describe('parseCaptionArrays', () => {
+  it('splits into the two array columns stored on media_posts', () => {
+    const result = parseCaptionArrays('#Matcha at @SomeCafe with #Kyoto vibes');
+
+    expect(result.hashtags).toEqual(['matcha', 'kyoto']);
+    expect(result.mentions).toEqual(['somecafe']);
+  });
+
+  it('returns empty arrays rather than null for a missing caption', () => {
+    // The columns are nullable in Postgres, but the parser should never be what
+    // introduces a null - callers store [] and the API returns [].
+    expect(parseCaptionArrays(null)).toEqual({ hashtags: [], mentions: [] });
+    expect(parseCaptionArrays('plain text')).toEqual({ hashtags: [], mentions: [] });
+  });
+
+  it('holds a full 30-hashtag caption without truncating', () => {
+    // 30 is Instagram's per-post ceiling, which is what makes an array column a
+    // reasonable choice here rather than a join table.
+    const caption = Array.from({ length: 30 }, (_, i) => `#tag${i}`).join(' ');
+    expect(parseCaptionArrays(caption).hashtags).toHaveLength(30);
   });
 });
